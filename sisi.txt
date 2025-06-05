@@ -1,0 +1,47 @@
+from scipy.optimize import linear_sum_assignment
+
+def score_groupby(df,col_na,candidat):
+
+    matrice = df.groupby([col_na,candidat])[col_na].sum().unstack(fill_value=0)
+    matrice_percent = matrice.div(matrice.sum(axis=1), axis=0) * 100
+
+    print(matrice_percent)
+
+    # Rendre la matrice carrée pour l'algorithme d'affectation
+    rows, cols = matrice_percent.shape
+    size = max(rows, cols)
+    padded = matrice_percent.copy()
+
+    # Ajout de lignes/colonnes fictives si nécessaire
+    if rows < size:
+        for i in range(size - rows):
+            padded.loc[f'Fictif_Ligne_{i}'] = 0
+    if cols < size:
+        for i in range(size - cols):
+            padded[f'Fictif_Colonne_{i}'] = 0
+
+    # Recalculer la taille et transformer en matrice numpy
+    padded = padded.sort_index().sort_index(axis=1)
+    cost_matrix = -padded.to_numpy()
+
+    # Résolution du problème
+    assign_rows, assign_cols = linear_sum_assignment(cost_matrix)
+
+    # Extraire les assignations valides (ignorer lignes/colonnes fictives)
+    assignments = []
+    total = 0
+    for r, c in zip(assign_rows, assign_cols):
+        row_label = padded.index[r]
+        col_label = padded.columns[c]
+        if not row_label.startswith("Fictif") and not col_label.startswith("Fictif"):
+            val = matrice_percent.loc[row_label, col_label]
+            assignments.append((row_label, col_label, val))
+            total += val
+
+    # Affichage
+    for row, col, val in assignments:
+        print(f"{row} → {col} : {val:.2f}%")
+
+    print(f"\n✅ Somme maximale des % sans doublon ligne/colonne : {total:.2f}%")
+
+    return(total)
